@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@theme {
+  /* Override Tailwind colors with exact requested brand colors */
+  --color-purple-900: #5C2D91; /* Primary purple */
+  --color-purple-100: #EDE7F6; /* Light purple bg */
+  --color-purple-50: #F3EEF9;  /* Preview area bg */
+  
+  --color-slate-900: #1A1A2E; /* Dark button bg */
+  --color-slate-800: #212121; /* Text primary */
+  --color-slate-700: #212121; /* Text primary alias */
+  --color-slate-600: #757575; /* Text secondary alias */
+  --color-slate-500: #757575; /* Text secondary */
+  --color-slate-200: #E0E0E0; /* Border color */
+  --color-slate-100: #F5F5F5; /* Light border/bg */
+  --color-green-500: #2E7D32; /* Success green alias */
+  --color-green-600: #2E7D32; /* Success green */
+  --color-white: #FFFFFF;     /* White */
+
+  /* Semantic variables for body */
+  --color-bg-main: #FFFFFF;
+  --color-text-main: #212121;
+
+  --animate-skeleton-pulse: skeleton-pulse 1.2s ease-in-out infinite alternate;
+  @keyframes skeleton-pulse {
+    0% { opacity: 0.4; }
+    100% { opacity: 0.8; }
+  }
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--color-bg-main);
+  color: var(--color-text-main);
+  height: 100vh;
+  overflow: hidden;
+}
