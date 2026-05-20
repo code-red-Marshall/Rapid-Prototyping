@@ -152,9 +152,9 @@ Format the "description" field using this elegant, highly-scannable corporate la
      - ⚠️ [Seat limits or deadline warnings] (e.g., "⚠️ Limited seats · Registration required")
 
 LENGTH BUDGET & READABILITY RULES:
-- The total length of the "description" field MUST be between 900 and 1000 characters.
-- Hard limit: 1000 characters. Absolutely do not exceed 1000 characters, but you must get as close as possible to it.
-- To utilize all 1000 characters elegantly, do NOT write shallow filler. Instead, write a comprehensive and detailed narrative in the Body Copy (expanding on significance, expectations, and community) and fully articulate the logistical descriptions.
+- The total length of the "description" field MUST be between 950 and 1000 characters (aiming for exactly 970-990 characters to maximize the space without clipping).
+- Hard limit: 1000 characters. Absolutely do not exceed 1000 characters under any circumstances, but you MUST write a highly detailed, comprehensive announcement that reaches at least 950 characters.
+- To hit this strict 950-1000 character length budget, expand deeply upon the workplace significance, the team benefits, cultural and communal values, detailed policies, employee expectations, actionable next steps, and logistics. Write a rich, detailed narrative in the Introduction & Body Copy paragraphs to ensure the text reaches this density without using generic or repetitive filler.
 - Use literal escape sequences "\\n\\n" for paragraph and block breaks, and "\\n" for list item breaks.
 - Do NOT use markdown syntax (like **, #, or raw bullet dashes like "- "). Rely on spacing ("\\n\\n") and emojis for lists.
 - Optimize readability for desktop/mobile announcement feeds and email previews.
@@ -174,7 +174,7 @@ OUTPUT RULES (non-negotiable)
 - Return ONLY a valid JSON object. No prose, no explanation, no markdown fences.
 - The JSON must contain exactly two keys: "title" and "description".
 - "title": string, max 12 words, follows the tone's title behaviour rules above.
-- "description": string. Formatted using the STRUCTURE & UI READABILITY RULES above, with a total length between 900 and 1000 characters (hard limit 1000), and absolutely no markdown syntax. IMPORTANT: You must write the entire structured description inside a single JSON string value, properly enclosed in double-quotes. Use literal escape sequences "\\n" and "\\n\\n" for spacing. Do NOT output raw, literal newlines or line breaks within the string value, as they violate the JSON format and crash the parser.
+- "description": string. Formatted using the STRUCTURE & UI READABILITY RULES above, with a total length between 950 and 1000 characters (hard limit 1000, minimum 950), and absolutely no markdown syntax. IMPORTANT: You must write the entire structured description inside a single JSON string value, properly enclosed in double-quotes. Use literal escape sequences "\\n" and "\\n\\n" for spacing. Do NOT output raw, literal newlines or line breaks within the string value, as they violate the JSON format and crash the parser.
 - If some details are missing:
   - preserve the announcement structure
   - use placeholders such as [DATE], [TIME], [LOCATION]
