@@ -1,8 +1,13 @@
+import { useState } from 'react';
+import ApiKeysModal from './ApiKeysModal';
+
 /**
  * TopNav — Horizontal top navigation bar, pixel-perfect clone of Vantage Circle production UI.
- * Single logo instance. Layout: Logo | Grid Icon | [Vantage Recognition ▾] | 👥 Add Employees | ...spacer... | 🔗 | 👤
+ * Single logo instance. Layout: Logo | Grid Icon | [Vantage Recognition ▾] | 👥 Add Employees | ...spacer... | 🔑 | 🔗 | 👤
  */
 export default function TopNav() {
+  const [isKeysOpen, setIsKeysOpen] = useState(false);
+
   return (
     <header className="h-[46px] bg-white border-b border-[#E8E8E8] flex items-center px-4 flex-shrink-0">
       
@@ -31,6 +36,15 @@ export default function TopNav() {
 
       {/* Right cluster — External link + Avatar */}
       <div className="flex items-center gap-3">
+        {/* API Settings Key icon */}
+        <button 
+          onClick={() => setIsKeysOpen(true)}
+          title="AI Connection Settings"
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-[#757575] hover:text-[#5C2D91] hover:bg-[#F3EEF9] transition-all cursor-pointer"
+        >
+          <i className="ph ph-key text-[16px]"></i>
+        </button>
+
         {/* External link icon */}
         <button className="text-[#757575] hover:text-[#212121] transition-colors">
           <i className="ph ph-arrow-square-out text-[16px]"></i>
@@ -45,6 +59,8 @@ export default function TopNav() {
           />
         </div>
       </div>
+
+      {isKeysOpen && <ApiKeysModal onClose={() => setIsKeysOpen(false)} />}
     </header>
   );
 }

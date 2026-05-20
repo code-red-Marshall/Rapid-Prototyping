@@ -18,7 +18,7 @@
  * NOT used by: huggingface.js (image generation via FLUX)
  */
 
-const HF_API_KEY = import.meta.env.VITE_HF_API_KEY;
+import { getHFKey } from './config';
 const MODEL      = 'mistralai/Mistral-7B-Instruct-v0.3';
 const ENDPOINT   = `/api/hf-text/models/${MODEL}`;
 
@@ -36,8 +36,9 @@ const ENDPOINT   = `/api/hf-text/models/${MODEL}`;
  * @throws {Error}                         - On network failure or non-OK API response.
  */
 export async function callHFText(prompt, { temperature = 0.5, maxTokens = 400 } = {}) {
-  if (!HF_API_KEY) {
-    throw new Error('VITE_HF_API_KEY is not set. Add it to your .env file.');
+  const apiKey = getHFKey();
+  if (!apiKey) {
+    throw new Error('VITE_HF_API_KEY is not set. Add it to your .env file or Settings.');
   }
 
   // Mistral-7B-Instruct requires [INST]...[/INST] wrapping for instruction following.
@@ -56,7 +57,7 @@ export async function callHFText(prompt, { temperature = 0.5, maxTokens = 400 } 
   const res = await fetch(ENDPOINT, {
     method:  'POST',
     headers: {
-      'Authorization': `Bearer ${HF_API_KEY}`,
+      'Authorization': `Bearer ${apiKey}`,
       'Content-Type':  'application/json',
     },
     body: JSON.stringify(body),

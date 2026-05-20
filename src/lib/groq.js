@@ -16,9 +16,7 @@
  * Used by: src/lib/prompts/composer.js (Announcement module only)
  */
 
-const GROQ_API_KEY = 
-  (typeof process !== 'undefined' && process.env?.VITE_GROQ_API_KEY) ||
-  (import.meta.env?.VITE_GROQ_API_KEY);
+import { getGroqKey } from './config';
 const MODEL        = 'llama-3.1-8b-instant';
 const ENDPOINT     = '/api/groq/openai/v1/chat/completions';
 
@@ -35,8 +33,9 @@ const ENDPOINT     = '/api/groq/openai/v1/chat/completions';
  * @throws {Error}                         - On network failure or non-OK API response.
  */
 export async function callGroq(prompt, { temperature = 0.5, maxTokens = 400, responseFormat = null } = {}) {
-  if (!GROQ_API_KEY || GROQ_API_KEY === 'your_groq_api_key_here') {
-    throw new Error('VITE_GROQ_API_KEY is not set. Add it to your .env file.');
+  const apiKey = getGroqKey();
+  if (!apiKey || apiKey === 'your_groq_api_key_here') {
+    throw new Error('VITE_GROQ_API_KEY is not set. Add it to your .env file or Settings.');
   }
 
   const body = {
@@ -59,7 +58,7 @@ export async function callGroq(prompt, { temperature = 0.5, maxTokens = 400, res
   const res = await fetch(ENDPOINT, {
     method:  'POST',
     headers: {
-      'Authorization': `Bearer ${GROQ_API_KEY}`,
+      'Authorization': `Bearer ${apiKey}`,
       'Content-Type':  'application/json',
     },
     body: JSON.stringify(body),

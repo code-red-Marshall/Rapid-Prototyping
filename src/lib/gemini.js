@@ -7,7 +7,7 @@
  * Does NOT handle image generation — that remains in huggingface.js.
  */
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+import { getGeminiKey } from './config';
 const MODEL          = 'gemini-2.0-flash';
 const ENDPOINT       = `/api/gemini/v1beta/models/${MODEL}:generateContent`;
 
@@ -25,11 +25,12 @@ const ENDPOINT       = `/api/gemini/v1beta/models/${MODEL}:generateContent`;
  * @returns {Promise<string>} Generated text from Gemini.
  */
 export async function callGemini(prompt, { temperature = 0.7, maxTokens = 512 } = {}) {
-  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'your_gemini_api_key_here') {
-    throw new Error('VITE_GEMINI_API_KEY is not set. Add it to your .env file.');
+  const apiKey = getGeminiKey();
+  if (!apiKey || apiKey === 'your_gemini_api_key_here') {
+    throw new Error('VITE_GEMINI_API_KEY is not set. Add it to your .env file or Settings.');
   }
 
-  const url = `${ENDPOINT}?key=${GEMINI_API_KEY}`;
+  const url = `${ENDPOINT}?key=${apiKey}`;
 
   const body = {
     contents: [{ parts: [{ text: prompt }] }],

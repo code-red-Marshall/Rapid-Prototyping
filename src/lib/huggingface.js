@@ -14,8 +14,7 @@
  * All prompts are deterministic — no LLM involvement.
  */
 
-const HF_API_URL = '/api/huggingface/models/black-forest-labs/FLUX.1-schnell';
-const HF_API_KEY = import.meta.env.VITE_HF_API_KEY;
+import { getHFKey } from './config';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ICON STYLE CONFIGS
@@ -244,18 +243,41 @@ function generateSeed(slot) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function callFlux(prompt, seed) {
-  console.log('[HF] Seed:', seed, '| Prompt:', prompt.substring(0, 100) + '...');
-  const response = await fetch(HF_API_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${HF_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      inputs: prompt,
-      parameters: { width: 512, height: 512, num_inference_steps: 8, guidance_scale: 3.5, seed },
-    }),
-  });
+  const apiKey = getHFKey();
+  if (!apiKey) {
+    throw new Error('VITE_HF_API_KEY is not set. Add it to your .env file or Settings.');
+  }
+
+  const primaryUrl = '/api/hf-text/models/black-forest-labs/FLUX.1-schnell';
+  const fallbackUrl = '/api/huggingface/models/black-forest-labs/FLUX.1-schnell';
+
+  const makeRequest = async (url) => {
+    console.log('[HF] Seed:', seed, '| Url:', url, '| Prompt:', prompt.substring(0, 100) + '...');
+    return fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inputs: prompt,
+        parameters: { width: 512, height: 512, num_inference_steps: 8, guidance_scale: 3.5, seed },
+      }),
+    });
+  };
+
+  let response;
+  try {
+    response = await makeRequest(primaryUrl);
+    if (!response.ok) {
+      console.warn(`[HF] Primary endpoint returned status ${response.status}. Trying fallback...`);
+      response = await makeRequest(fallbackUrl);
+    }
+  } catch (err) {
+    console.error(`[HF] Primary endpoint fetch failed:`, err.message, 'Trying fallback...');
+    response = await makeRequest(fallbackUrl);
+  }
+
   if (!response.ok) {
     const err = await response.text().catch(() => '');
     console.error('[HF] Error:', response.status, err.substring(0, 300));
