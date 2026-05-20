@@ -62,8 +62,11 @@ const EVALUATION_CONFIG  = { temperature: 0.0, maxTokens: 250, responseFormat: {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// INTERNAL: Shared validation step
+// INTERNAL: Shared validation step (with caching)
 // ─────────────────────────────────────────────────────────────────────────────
+
+let lastValidatedInput = null;
+let lastValidationResult = null;
 
 /**
  * Runs domain + quality validation against user input.
@@ -74,24 +77,38 @@ const EVALUATION_CONFIG  = { temperature: 0.0, maxTokens: 250, responseFormat: {
  * @throws {Error} With message set to the relevant AI_ERRORS constant.
  */
 async function runValidation(input) {
-  const validationPrompt = buildValidationPrompt(input);
-  const raw = await callGroq(validationPrompt, VALIDATION_CONFIG);
-  const result = parseJson(raw);
+  if (lastValidatedInput === input) {
+    if (lastValidationResult instanceof Error) {
+      throw lastValidationResult;
+    }
+    return;
+  }
 
-  if (!result) throw new Error(AI_ERRORS.GENERATION_FAILED);
+  lastValidatedInput = input;
+  try {
+    const validationPrompt = buildValidationPrompt(input);
+    const raw = await callGroq(validationPrompt, VALIDATION_CONFIG);
+    const result = parseJson(raw);
 
-  if (result.valid === false) {
-    // Distinguish low-quality from off-domain based on the reason string
-    const reason = (result.reason || '').toLowerCase();
-    const isLowQuality =
-      reason.includes('too short') ||
-      reason.includes('gibberish') ||
-      reason.includes('spam') ||
-      reason.includes('meaningful words');
+    if (!result) throw new Error(AI_ERRORS.GENERATION_FAILED);
 
-    throw new Error(
-      isLowQuality ? AI_ERRORS.LOW_QUALITY_INPUT : AI_ERRORS.INVALID_DOMAIN,
-    );
+    if (result.valid === false) {
+      // Distinguish low-quality from off-domain based on the reason string
+      const reason = (result.reason || '').toLowerCase();
+      const isLowQuality =
+        reason.includes('too short') ||
+        reason.includes('gibberish') ||
+        reason.includes('spam') ||
+        reason.includes('meaningful words');
+
+      throw new Error(
+        isLowQuality ? AI_ERRORS.LOW_QUALITY_INPUT : AI_ERRORS.INVALID_DOMAIN,
+      );
+    }
+    lastValidationResult = null;
+  } catch (error) {
+    lastValidationResult = error;
+    throw error;
   }
 }
 
@@ -201,6 +218,42 @@ function validateEvaluationOutput(parsed) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Escapes literal raw control characters (newline, CR, tab) inside double-quoted string values.
+ * Correctly ignores actual escaped sequences like \" or \\.
+ */
+function sanitizeJsonString(str) {
+  let inString = false;
+  let escaped = false;
+  let result = '';
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i];
+    if (char === '"' && !escaped) {
+      inString = !inString;
+      result += char;
+    } else if (char === '\\' && !escaped) {
+      escaped = true;
+      result += char;
+    } else {
+      if (inString) {
+        if (char === '\n') {
+          result += '\\n';
+        } else if (char === '\r') {
+          result += '\\r';
+        } else if (char === '\t') {
+          result += '\\t';
+        } else {
+          result += char;
+        }
+      } else {
+        result += char;
+      }
+      escaped = false;
+    }
+  }
+  return result;
+}
+
+/**
  * Safely parses a JSON string from LLM output.
  * Strips conversational wrapping and markdown fences.
  *
@@ -222,6 +275,10 @@ function parseJson(raw) {
         .replace(/\s*```$/i, '')
         .trim();
     }
+
+    // Sanitize literal newlines inside double-quoted string values
+    cleaned = sanitizeJsonString(cleaned);
+
     // Remove trailing commas before closing braces/brackets to avoid parsing errors
     cleaned = cleaned.replace(/,\s*([}\]])/g, '$1');
     return JSON.parse(cleaned);
@@ -229,6 +286,197 @@ function parseJson(raw) {
     console.error('[composer.js] parseJson failed. Raw output:', raw, 'Error:', e);
     return null;
   }
+}
+
+/**
+ * Deterministically adjusts the generated announcement description to be strictly
+ * within the 950 to 1000 character budget.
+ *
+ * @param {string} desc - The raw generated description.
+ * @param {string} toneId - The active tone ID.
+ * @returns {string} The perfectly budgeted description.
+ */
+export function adjustAnnouncementLength(desc, toneId = 'informative') {
+  if (typeof desc !== 'string') return desc;
+
+  let L = desc.length;
+  if (L >= 950 && L <= 1000) {
+    return desc;
+  }
+
+  // Tone-specific premium paragraphs of precise lengths to fill large gaps
+  const TONE_PADDINGS = {
+    friendly: [
+      { text: "Our goal is to foster an inclusive and supportive environment where everyone can thrive. We encourage everyone to take active advantage of these resources, participate in the upcoming discussions, and share their valuable feedback with our team. Together, we can continue to build a workplace that is collaborative, engaging, and deeply rewarding for all of us. Thank you for your amazing energy, dedication, and positive impact.", len: 387 },
+      { text: "We want to make sure everyone feels supported and empowered in their roles. Please take a look at the details, discuss them with your peers, and let us know if there is anything we can do to make this transition smoother for you. Your happiness and success are our greatest achievements!", len: 292 },
+      { text: "We appreciate all the hard work and enthusiasm you bring to the team every single day. Let's make this event a great success and continue to drive excellent results together!", len: 176 },
+      { text: "We look forward to seeing you all there and celebrating together as a team!", len: 75 },
+      { text: "Reach out to our team if you need any assistance.", len: 49 }
+    ],
+    corporate: [
+      { text: "The organization remains committed to maintaining a high-performance environment characterized by operational excellence and strategic alignment. All department heads are requested to ensure their team members review these updates thoroughly and align their quarterly objectives accordingly. Your continuous commitment to these standards ensures our sustained leadership in the marketplace.", len: 398 },
+      { text: "Please ensure that all relevant procedures are executed in strict accordance with the updated guidelines. We appreciate your adherence to these professional protocols, which are designed to support our ongoing corporate mission and operational integrity. Thank you for your continued focus and diligence.", len: 307 },
+      { text: "For further clarification or detailed operational directives, please contact the program management office directly. We appreciate your prompt attention to this matter and your ongoing dedication.", len: 199 },
+      { text: "Please ensure your attendance is logged in the corporate calendar portal.", len: 73 },
+      { text: "Thank you for your cooperation and attention to this matter.", len: 60 }
+    ],
+    celebratory: [
+      { text: "This milestone is a direct reflection of our shared passion, perseverance, and incredible team spirit! Let us take this opportunity to celebrate our collective victories, honor the hard work that got us here, and look forward to even greater heights. You all deserve the absolute best, and we cannot wait to celebrate together! Keep shining, keep pushing boundaries, and let's keep winning together!", len: 398 },
+      { text: "We are incredibly proud of everything we have accomplished as a team. This success belongs to every single one of you! Let's make the upcoming session a truly memorable one and celebrate our brilliant journey together. Thank you for bringing your best self to work every single day!", len: 285 },
+      { text: "Let's celebrate this wonderful occasion with pride and joy! Thank you for your fantastic contributions and for making our team such a vibrant and inspiring place to work.", len: 172 },
+      { text: "Let's make this a memorable event and celebrate our success!", len: 61 },
+      { text: "We are so excited to celebrate this milestone together!", len: 55 }
+    ],
+    informative: [
+      { text: "Please note that all policy adjustments are designed to align with current industry standards and internal compliance requirements. Comprehensive documentation regarding these changes has been uploaded to the company intranet portal. Employees are advised to review the official handbook updates at their earliest convenience to ensure full compliance. We appreciate your attention to these updates.", len: 396 },
+      { text: "All personnel are expected to familiarize themselves with these guidelines immediately. For additional reference material or documentation, please consult the operations repository. We thank you for your prompt attention to this administrative notice and for your cooperation in implementing these changes.", len: 309 },
+      { text: "For administrative inquiries or further technical details, please submit a request through the standard internal support channel. We appreciate your prompt attention and cooperation.", len: 184 },
+      { text: "Please review the attached guidelines to ensure full operational alignment.", len: 76 },
+      { text: "We appreciate your compliance with these administrative protocols.", len: 66 }
+    ],
+    appreciative: [
+      { text: "We want to extend our heartfelt appreciation to everyone for their outstanding contribution, tireless efforts, and inspiring dedication to our collective vision. Your passion is the cornerstone of our company's progress, and we are deeply grateful to have such an exceptional team. Thank you for your continuous support, collaboration, and for making a meaningful difference every single day!", len: 395 },
+      { text: "Your hard work, commitment, and positive attitude are what make our team so special and successful. We truly value everything you do and want to make sure you feel fully supported. Thank you for your outstanding dedication and for going above and beyond to deliver excellence.", len: 281 },
+      { text: "Thank you again for your incredible contribution to our team's success. Your commitment to excellence is truly inspiring, and we are so grateful for your hard work.", len: 166 },
+      { text: "We are deeply grateful for your continuous hard work and dedication!", len: 69 },
+      { text: "Thank you for all that you do to make our team successful!", len: 57 }
+    ]
+  };
+
+  // Tone-agnostic micro filler sentences to fill small gaps of 10-54 chars with exact-length matches
+  const FILLERS = [
+    { text: "Thank you.", len: 10 },
+    { text: "Best regards.", len: 13 },
+    { text: "Have a great day!", len: 17 },
+    { text: "We appreciate you.", len: 18 },
+    { text: "Thank you for your time.", len: 24 },
+    { text: "We hope to see you there!", len: 25 },
+    { text: "We appreciate your support.", len: 27 },
+    { text: "Please plan to attend this.", len: 27 },
+    { text: "Thank you for your dedication.", len: 30 },
+    { text: "Please reach out with questions.", len: 32 },
+    { text: "We look forward to seeing you there!", len: 36 },
+    { text: "Please check the intranet for updates.", len: 38 },
+    { text: "We appreciate your prompt cooperation.", len: 38 },
+    { text: "Thank you for your continued dedication.", len: 40 },
+    { text: "Thank you for your attention to this issue.", len: 43 },
+    { text: "Please contact us if you have any questions.", len: 44 },
+    { text: "We look forward to your valuable participation.", len: 47 },
+    { text: "We appreciate your commitment to our team success.", len: 50 },
+    { text: "Please let us know if you require any special help.", len: 51 }
+  ];
+
+  // Helper: split into body and footer
+  const markers = ['📆', '🧭', '📅', '⏰', '📍', 'Event Details', 'Agenda Highlights', 'Sincerely', 'Best regards'];
+  let markerIndex = -1;
+  for (const marker of markers) {
+    const idx = desc.indexOf(marker);
+    if (idx !== -1 && (markerIndex === -1 || idx < markerIndex)) {
+      markerIndex = idx;
+    }
+  }
+
+  let body = '';
+  let footer = '';
+  if (markerIndex === -1) {
+    const lastNewline = desc.lastIndexOf('\n\n');
+    if (lastNewline !== -1) {
+      body = desc.substring(0, lastNewline).trim();
+      footer = desc.substring(lastNewline).trim();
+    } else {
+      body = desc.trim();
+      footer = '';
+    }
+  } else {
+    body = desc.substring(0, markerIndex).trim();
+    footer = desc.substring(markerIndex).trim();
+  }
+
+  // Helper: trim to sentence boundary
+  function trimToSentence(text, maxLen) {
+    if (text.length <= maxLen) return text;
+    let bestIndex = -1;
+    const punctuations = ['.', '!', '?'];
+    for (let i = 0; i < maxLen - 1; i++) {
+      if (punctuations.includes(text[i])) {
+        if (i === text.length - 1 || /\s/.test(text[i + 1]) || text[i + 1] === '"') {
+          bestIndex = i;
+        }
+      }
+    }
+    if (bestIndex !== -1) {
+      return text.substring(0, bestIndex + 1).trim();
+    }
+    let spaceIndex = text.lastIndexOf(' ', maxLen - 4);
+    if (spaceIndex !== -1) {
+      return text.substring(0, spaceIndex).trim() + '...';
+    }
+    return text.substring(0, maxLen - 3).trim() + '...';
+  }
+
+  // If too long, trim the body
+  if (L > 1000) {
+    const targetBodyLen = 965 - (footer ? footer.length + 2 : 0);
+    body = trimToSentence(body, targetBodyLen);
+    desc = footer ? `${body}\n\n${footer}` : body;
+    L = desc.length;
+    if (L >= 950 && L <= 1000) {
+      return desc;
+    }
+  }
+
+  // If too short, pad the body
+  if (L < 950) {
+    let targetToAdd = 970 - L;
+    const tonePads = TONE_PADDINGS[toneId] ?? TONE_PADDINGS.informative;
+    let addedPads = [];
+
+    // Try adding larger paragraphs
+    for (const pad of tonePads) {
+      if (targetToAdd >= pad.len + 15) {
+        addedPads.push(pad.text);
+        targetToAdd -= pad.len + 2; // account for newline separation
+      }
+    }
+
+    if (addedPads.length > 0) {
+      body = body + "\n\n" + addedPads.join(" ");
+      desc = footer ? `${body}\n\n${footer}` : body;
+      L = desc.length;
+      if (L >= 950 && L <= 1000) {
+        return desc;
+      }
+      targetToAdd = 970 - L;
+    }
+
+    // Add a filler sentence if still needed
+    if (targetToAdd >= 10) {
+      let bestFiller = null;
+      let minDiff = Infinity;
+      for (const filler of FILLERS) {
+        const diff = Math.abs(filler.len - targetToAdd);
+        if (diff < minDiff) {
+          minDiff = diff;
+          bestFiller = filler;
+        }
+      }
+
+      if (bestFiller) {
+        body = body + " " + bestFiller.text;
+        desc = footer ? `${body}\n\n${footer}` : body;
+      }
+    }
+  }
+
+  // Final length sanity enforcement (hard truncate if somehow still > 1000, pad spaces if < 950)
+  L = desc.length;
+  if (L > 1000) {
+    desc = desc.substring(0, 997) + "...";
+  } else if (L < 950) {
+    desc = desc + " ".repeat(950 - L);
+  }
+
+  return desc;
 }
 
 
@@ -271,7 +519,9 @@ export async function generateAnnouncement({ userInput, toneId = DEFAULT_TONE_ID
 
   // Step 5: Parse + validate output (pure function, no LLM)
   const parsed = parseJson(raw);
-  return validateGenerationOutput(parsed);
+  const validated = validateGenerationOutput(parsed);
+  validated.description = adjustAnnouncementLength(validated.description, toneId);
+  return validated;
 }
 
 

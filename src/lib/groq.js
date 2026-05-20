@@ -16,7 +16,9 @@
  * Used by: src/lib/prompts/composer.js (Announcement module only)
  */
 
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
+const GROQ_API_KEY = 
+  (typeof process !== 'undefined' && process.env?.VITE_GROQ_API_KEY) ||
+  (import.meta.env?.VITE_GROQ_API_KEY);
 const MODEL        = 'llama-3.1-8b-instant';
 const ENDPOINT     = '/api/groq/openai/v1/chat/completions';
 
