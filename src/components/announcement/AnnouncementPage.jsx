@@ -35,6 +35,7 @@ export default function AnnouncementPage() {
   // Form state
   const [aiPrompt,      setAiPrompt]      = useState('');
   const [tone,          setTone]          = useState('corporate');
+  const [sender,        setSender]        = useState('Team HR');
   const [title,         setTitle]         = useState('');
   const [description,   setDescription]   = useState('');
   const [city,          setCity]          = useState('');
@@ -121,6 +122,7 @@ export default function AnnouncementPage() {
         userInput:    aiPrompt,
         toneId:       tone || 'informative',
         placeholders: {}, // extend with form context if needed in future
+        sender:       sender,
       });
       if (result.title)       setTitle(result.title);
       if (result.description) {
@@ -255,24 +257,43 @@ export default function AnnouncementPage() {
               </div>
             </div>
 
-            {/* Tone dropdown */}
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <label htmlFor="tone-select" className="text-[13px] font-medium text-[#374151] flex items-center gap-1">
-                <i className="ph ph-smiley text-base text-[#5C2D91]" />
-                Tone
-              </label>
-              <div className="relative">
-                <select
-                  id="tone-select"
-                  value={tone}
-                  onChange={e => setTone(e.target.value)}
-                  className="appearance-none pl-3 pr-8 py-2 border border-[#D1D5DB] rounded-[8px] text-[13px] text-[#374151] bg-white focus:outline-none focus:ring-2 focus:ring-[#5C2D91]/30 focus:border-[#5C2D91] cursor-pointer min-w-[140px]"
-                >
-                  {TONE_OPTIONS.map(t => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
-                <i className="ph ph-caret-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9CA3AF] text-sm pointer-events-none" />
+            {/* Controls Row: Tone & Signature */}
+            <div className="flex items-center gap-4 flex-shrink-0">
+              {/* Tone dropdown */}
+              <div className="flex items-center gap-2">
+                <label htmlFor="tone-select" className="text-[13px] font-medium text-[#374151] flex items-center gap-1">
+                  <i className="ph ph-smiley text-base text-[#5C2D91]" />
+                  Tone
+                </label>
+                <div className="relative">
+                  <select
+                    id="tone-select"
+                    value={tone}
+                    onChange={e => setTone(e.target.value)}
+                    className="appearance-none pl-3 pr-8 py-2 border border-[#D1D5DB] rounded-[8px] text-[13px] text-[#374151] bg-white focus:outline-none focus:ring-2 focus:ring-[#5C2D91]/30 focus:border-[#5C2D91] cursor-pointer min-w-[120px]"
+                  >
+                    {TONE_OPTIONS.map(t => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                  <i className="ph ph-caret-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9CA3AF] text-sm pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Regards (Sender Name) input field */}
+              <div className="flex items-center gap-2">
+                <label htmlFor="sender-input" className="text-[13px] font-medium text-[#374151] flex items-center gap-1">
+                  <i className="ph ph-user text-base text-[#5C2D91]" />
+                  Regards
+                </label>
+                <input
+                  id="sender-input"
+                  type="text"
+                  value={sender}
+                  onChange={e => setSender(e.target.value)}
+                  placeholder="Team HR"
+                  className="px-3 py-2 border border-[#D1D5DB] rounded-[8px] text-[13px] text-[#374151] bg-white focus:outline-none focus:ring-2 focus:ring-[#5C2D91]/30 focus:border-[#5C2D91] w-[110px]"
+                />
               </div>
             </div>
           </div>

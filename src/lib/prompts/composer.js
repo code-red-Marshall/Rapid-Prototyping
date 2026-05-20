@@ -296,13 +296,22 @@ function parseJson(raw) {
  * @param {string} toneId - The active tone ID.
  * @returns {string} The perfectly budgeted description.
  */
-export function adjustAnnouncementLength(desc, toneId = 'informative') {
+export function adjustAnnouncementLength(desc, toneId = 'informative', sender = 'Team HR') {
   if (typeof desc !== 'string') return desc;
 
-  let L = desc.length;
-  if (L >= 950 && L <= 1000) {
-    return desc;
+  const cleanSender = (sender || '').trim();
+  if (!cleanSender) return desc;
+
+  // Determine appropriate sign-off phrase based on toneId
+  let signOffPhrase = 'Regards';
+  if (toneId === 'friendly' || toneId === 'appreciative' || toneId === 'celebratory') {
+    signOffPhrase = 'Warm regards';
+  } else if (toneId === 'corporate') {
+    signOffPhrase = 'Sincerely';
   }
+
+  const signatureBlock = `\n\n${signOffPhrase},\n${cleanSender}`;
+  const sigLen = signatureBlock.length;
 
   // Tone-specific premium paragraphs of precise lengths to fill large gaps
   const TONE_PADDINGS = {
@@ -342,7 +351,7 @@ export function adjustAnnouncementLength(desc, toneId = 'informative') {
       { text: "Thank you for all that you do to make our team successful!", len: 57 }
     ]
   };
-
+ 
   // Tone-agnostic micro filler sentences to fill small gaps of 10-54 chars with exact-length matches
   const FILLERS = [
     { text: "Thank you.", len: 10 },
@@ -366,11 +375,22 @@ export function adjustAnnouncementLength(desc, toneId = 'informative') {
     { text: "Please let us know if you require any special help.", len: 51 }
   ];
 
+  // Let's strip any existing signature block from the end of the input desc to prevent duplication.
+  let cleanDesc = desc.trim();
+  const trailingSignoffRegex = /\n\n(?:regards|warm regards|best regards|sincerely|cheers|with gratitude|thank you|best)\b.*$/is;
+  cleanDesc = cleanDesc.replace(trailingSignoffRegex, '').trim();
+
+  const targetMin = 950 - sigLen;
+  const targetMax = 1000 - sigLen;
+  const targetOpt = Math.floor((targetMin + targetMax) / 2);
+
+  let L = cleanDesc.length;
+
   // Helper: split into body and footer
-  const markers = ['📆', '🧭', '📅', '⏰', '📍', 'Event Details', 'Agenda Highlights', 'Sincerely', 'Best regards'];
+  const markers = ['📆', '🧭', '📅', '⏰', '📍', 'Event Details', 'Agenda Highlights'];
   let markerIndex = -1;
   for (const marker of markers) {
-    const idx = desc.indexOf(marker);
+    const idx = cleanDesc.indexOf(marker);
     if (idx !== -1 && (markerIndex === -1 || idx < markerIndex)) {
       markerIndex = idx;
     }
@@ -379,17 +399,17 @@ export function adjustAnnouncementLength(desc, toneId = 'informative') {
   let body = '';
   let footer = '';
   if (markerIndex === -1) {
-    const lastNewline = desc.lastIndexOf('\n\n');
+    const lastNewline = cleanDesc.lastIndexOf('\n\n');
     if (lastNewline !== -1) {
-      body = desc.substring(0, lastNewline).trim();
-      footer = desc.substring(lastNewline).trim();
+      body = cleanDesc.substring(0, lastNewline).trim();
+      footer = cleanDesc.substring(lastNewline).trim();
     } else {
-      body = desc.trim();
+      body = cleanDesc.trim();
       footer = '';
     }
   } else {
-    body = desc.substring(0, markerIndex).trim();
-    footer = desc.substring(markerIndex).trim();
+    body = cleanDesc.substring(0, markerIndex).trim();
+    footer = cleanDesc.substring(markerIndex).trim();
   }
 
   // Helper: trim to sentence boundary
@@ -415,19 +435,16 @@ export function adjustAnnouncementLength(desc, toneId = 'informative') {
   }
 
   // If too long, trim the body
-  if (L > 1000) {
-    const targetBodyLen = 965 - (footer ? footer.length + 2 : 0);
+  if (L > targetMax) {
+    const targetBodyLen = targetOpt - (footer ? footer.length + 2 : 0);
     body = trimToSentence(body, targetBodyLen);
-    desc = footer ? `${body}\n\n${footer}` : body;
-    L = desc.length;
-    if (L >= 950 && L <= 1000) {
-      return desc;
-    }
+    cleanDesc = footer ? `${body}\n\n${footer}` : body;
+    L = cleanDesc.length;
   }
 
   // If too short, pad the body
-  if (L < 950) {
-    let targetToAdd = 970 - L;
+  if (L < targetMin) {
+    let targetToAdd = targetOpt - L;
     const tonePads = TONE_PADDINGS[toneId] ?? TONE_PADDINGS.informative;
     let addedPads = [];
 
@@ -441,12 +458,9 @@ export function adjustAnnouncementLength(desc, toneId = 'informative') {
 
     if (addedPads.length > 0) {
       body = body + "\n\n" + addedPads.join(" ");
-      desc = footer ? `${body}\n\n${footer}` : body;
-      L = desc.length;
-      if (L >= 950 && L <= 1000) {
-        return desc;
-      }
-      targetToAdd = 970 - L;
+      cleanDesc = footer ? `${body}\n\n${footer}` : body;
+      L = cleanDesc.length;
+      targetToAdd = targetOpt - L;
     }
 
     // Add a filler sentence if still needed
@@ -463,20 +477,20 @@ export function adjustAnnouncementLength(desc, toneId = 'informative') {
 
       if (bestFiller) {
         body = body + " " + bestFiller.text;
-        desc = footer ? `${body}\n\n${footer}` : body;
+        cleanDesc = footer ? `${body}\n\n${footer}` : body;
+        L = cleanDesc.length;
       }
     }
   }
 
-  // Final length sanity enforcement (hard truncate if somehow still > 1000, pad spaces if < 950)
-  L = desc.length;
-  if (L > 1000) {
-    desc = desc.substring(0, 997) + "...";
-  } else if (L < 950) {
-    desc = desc + " ".repeat(950 - L);
+  // Final length sanity enforcement (hard truncate if somehow still > targetMax, pad spaces if < targetMin)
+  if (L > targetMax) {
+    cleanDesc = cleanDesc.substring(0, targetMax - 3) + "...";
+  } else if (L < targetMin) {
+    cleanDesc = cleanDesc + " ".repeat(targetMin - L);
   }
 
-  return desc;
+  return cleanDesc + signatureBlock;
 }
 
 
@@ -495,11 +509,12 @@ export function adjustAnnouncementLength(desc, toneId = 'informative') {
  * @param {string}  params.userInput    - The validated description of what to announce.
  * @param {string}  [params.toneId]     - Tone ID from TONE_MAP. Defaults to 'informative'.
  * @param {object}  [params.placeholders] - Optional factual context key/value pairs.
+ * @param {string}  [params.sender]       - Custom sign-off sender name.
  *
  * @returns {Promise<{ title: string, description: string }>}
  * @throws {Error} With message set to an AI_ERRORS constant.
  */
-export async function generateAnnouncement({ userInput, toneId = DEFAULT_TONE_ID, placeholders = {} }) {
+export async function generateAnnouncement({ userInput, toneId = DEFAULT_TONE_ID, placeholders = {}, sender = 'Team HR' }) {
   // Step 1: Validate input before any generation prompt is built
   await runValidation(userInput);
 
@@ -520,7 +535,7 @@ export async function generateAnnouncement({ userInput, toneId = DEFAULT_TONE_ID
   // Step 5: Parse + validate output (pure function, no LLM)
   const parsed = parseJson(raw);
   const validated = validateGenerationOutput(parsed);
-  validated.description = adjustAnnouncementLength(validated.description, toneId);
+  validated.description = adjustAnnouncementLength(validated.description, toneId, sender);
   return validated;
 }
 
