@@ -1,17 +1,18 @@
-import { useState, useRef } from 'react';
-import { callGemini } from '../../lib/gemini';
+import { useState, useRef, useEffect } from 'react';
+import {
+  generateAnnouncement,
+  rewriteAnnouncement,
+  getAvailableTones,
+} from '../../lib/prompts/composer';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Tone options sourced from the composer's registry — single source of truth.
 const TONE_OPTIONS = [
-  { value: '',             label: 'Select tone' },
-  { value: 'friendly',    label: 'Friendly' },
-  { value: 'formal',      label: 'Formal' },
-  { value: 'celebratory', label: 'Celebratory' },
-  { value: 'informative', label: 'Informative' },
-  { value: 'inspirational', label: 'Inspirational' },
+  { value: '', label: 'Select tone' },
+  ...getAvailableTones().map(t => ({ value: t.id, label: t.label })),
 ];
 
 const CITY_OPTIONS    = ['All Cities', 'New York', 'London', 'Bangalore', 'Singapore', 'Dubai', 'Toronto', 'Sydney'];
@@ -28,12 +29,12 @@ const DESC_MAX = 1000;
 /**
  * AnnouncementPage — Anno_2 design.
  * Single-column form: AI Composer → Title → Description → Audience & Delivery → Post.
- * Gemini API powers "Generate Draft" and "Improve Writing".
+ * Groq API powers "Generate Draft" and "Improve Writing".
  */
 export default function AnnouncementPage() {
   // Form state
   const [aiPrompt,      setAiPrompt]      = useState('');
-  const [tone,          setTone]          = useState('');
+  const [tone,          setTone]          = useState('corporate');
   const [title,         setTitle]         = useState('');
   const [description,   setDescription]   = useState('');
   const [city,          setCity]          = useState('');
@@ -53,6 +54,52 @@ export default function AnnouncementPage() {
   // actionable when the user has typed content themselves.
   const [isDescTyped, setIsDescTyped] = useState(false);
 
+  // Tracks the original AI-generated draft to enable partial improvements on user edits.
+  const [originalAiDraft, setOriginalAiDraft] = useState('');
+
+  // Description action history (Undo / Redo)
+  const [descHistory, setDescHistory] = useState(['']);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const typingTimeoutRef = useRef(null);
+
+  const pushToHistory = (newVal) => {
+    if (newVal === descHistory[historyIndex]) return;
+    const newHist = descHistory.slice(0, historyIndex + 1);
+    newHist.push(newVal);
+    if (newHist.length > 50) {
+      newHist.shift();
+    }
+    setDescHistory(newHist);
+    setHistoryIndex(newHist.length - 1);
+  };
+
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      const prevIndex = historyIndex - 1;
+      setHistoryIndex(prevIndex);
+      const prevVal = descHistory[prevIndex];
+      setDescription(prevVal);
+      setIsDescTyped(true);
+    }
+  };
+
+  const handleRedo = () => {
+    if (historyIndex < descHistory.length - 1) {
+      const nextIndex = historyIndex + 1;
+      setHistoryIndex(nextIndex);
+      const nextVal = descHistory[nextIndex];
+      setDescription(nextVal);
+      setIsDescTyped(true);
+    }
+  };
+
+  // Cleanup typing timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    };
+  }, []);
+
   // Tips panel
   const [tipsOpen, setTipsOpen] = useState(false);
 
@@ -61,7 +108,7 @@ export default function AnnouncementPage() {
   // ── AI: Generate Draft ────────────────────────────────────────────────────
 
   /**
-   * Calls Gemini with the user's prompt to generate a full announcement draft.
+   * Calls Groq with the user's prompt to generate a full announcement draft.
    * Populates title + description fields.
    */
   const handleGenerateDraft = async () => {
@@ -69,31 +116,25 @@ export default function AnnouncementPage() {
     setAiLoading(true);
     setAiError('');
     try {
-      const selectedTone = tone || 'friendly';
-      const prompt = `
-You are an internal communications expert.
-A company admin wants to create an announcement. Here is their description:
-
-"${aiPrompt.trim()}"
-
-Tone: ${selectedTone}
-
-Generate a concise, professional internal company announcement.
-
-OUTPUT FORMAT (return EXACTLY this JSON, no markdown, no extra text):
-{
-  "title": "<announcement title, max 10 words>",
-  "description": "<announcement body, 2-4 sentences, engaging and clear>"
-}
-`.trim();
-
-      const raw     = await callGemini(prompt, { temperature: 0.7, maxTokens: 400 });
-      const cleaned = raw.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim();
-      const parsed  = JSON.parse(cleaned);
-      if (parsed.title)       setTitle(parsed.title.trim());
-      if (parsed.description) {
-        setDescription(parsed.description.trim().substring(0, DESC_MAX));
+      // GENERATE FLOW: validation → base + tone (structured injection) → LLM → output validator
+      const result = await generateAnnouncement({
+        userInput:    aiPrompt,
+        toneId:       tone || 'informative',
+        placeholders: {}, // extend with form context if needed in future
+      });
+      if (result.title)       setTitle(result.title);
+      if (result.description) {
+        const generated = result.description.substring(0, DESC_MAX);
+        setDescription(generated);
+        setOriginalAiDraft(generated); // Track the original draft
         setIsDescTyped(false); // AI filled it — Improve Writing stays locked
+
+        // Push directly to history and clear manual typing debounce
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        const newHist = descHistory.slice(0, historyIndex + 1);
+        newHist.push(generated);
+        setDescHistory(newHist);
+        setHistoryIndex(newHist.length - 1);
       }
     } catch (err) {
       setAiError(err.message || 'Generation failed. Check your API key and try again.');
@@ -105,25 +146,38 @@ OUTPUT FORMAT (return EXACTLY this JSON, no markdown, no extra text):
   // ── AI: Improve Writing ───────────────────────────────────────────────────
 
   /**
-   * Calls Gemini to improve the existing description text in-place.
+   * Calls Groq to improve the existing description text in-place.
    */
   const handleImproveWriting = async () => {
-    if (!description.trim()) return;
+    if (!description.trim() || !isDescTyped) return;
     setImproveLoading(true);
     setImproveError('');
     try {
-      const selectedTone = tone || 'friendly';
-      const prompt = `
-You are a professional editor. Improve the following internal company announcement text.
-Make it clearer, more engaging, and ${selectedTone} in tone.
-Return ONLY the improved text — no explanations, no JSON, no markdown.
+      // Clear manual typing timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
 
-Original text:
-"${description.trim()}"
-`.trim();
+      // REWRITE FLOW: validation → rewrite prompt (CRAFT) → LLM → output validator
+      const result = await rewriteAnnouncement({
+        existingText: description,
+        toneId:       tone || null,
+        originalDraftText: originalAiDraft || null,
+      });
+      const improved = result.message.substring(0, DESC_MAX);
+      setDescription(improved);
+      setOriginalAiDraft(improved); // Update original AI draft to the improved text for subsequent edits
+      // After rewrite, isDescTyped stays true — user can re-improve if needed
 
-      const improved = await callGemini(prompt, { temperature: 0.6, maxTokens: 400 });
-      setDescription(improved.trim().substring(0, DESC_MAX));
+      // Construct history: push pre-improved text first if it differs from current history point
+      let newHist = descHistory.slice(0, historyIndex + 1);
+      if (description !== newHist[newHist.length - 1]) {
+        newHist.push(description);
+      }
+      newHist.push(improved);
+      setDescHistory(newHist);
+      setHistoryIndex(newHist.length - 1);
     } catch (err) {
       setImproveError(err.message || 'Improvement failed. Try again.');
     } finally {
@@ -203,7 +257,10 @@ Original text:
 
             {/* Tone dropdown */}
             <div className="flex items-center gap-2 flex-shrink-0">
-              <label className="text-[13px] font-medium text-[#374151]">Tone</label>
+              <label htmlFor="tone-select" className="text-[13px] font-medium text-[#374151] flex items-center gap-1">
+                <i className="ph ph-smiley text-base text-[#5C2D91]" />
+                Tone
+              </label>
               <div className="relative">
                 <select
                   id="tone-select"
@@ -293,9 +350,21 @@ Original text:
             id="ann-desc"
             ref={descRef}
             value={description}
-            onChange={e => { setDescription(e.target.value.substring(0, DESC_MAX)); setIsDescTyped(true); }}
+            onChange={e => {
+              const val = e.target.value.substring(0, DESC_MAX);
+              setDescription(val);
+              setIsDescTyped(true);
+              if (!val.trim()) {
+                setOriginalAiDraft('');
+              }
+              // Debounce pushing manual edits to history (e.g. 800ms)
+              if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+              typingTimeoutRef.current = setTimeout(() => {
+                pushToHistory(val);
+              }, 800);
+            }}
             placeholder="Enter announcement description..."
-            rows={8}
+            rows={14}
             className="w-full px-3 py-2.5 border border-[#E5E7EB] rounded-[8px] text-[14px] text-[#1A1A1A] placeholder:text-[#9CA3AF] bg-white focus:outline-none focus:ring-2 focus:ring-[#5C2D91]/20 focus:border-[#5C2D91] resize-none transition-colors leading-relaxed"
           />
 
@@ -307,10 +376,31 @@ Original text:
               <ToolbarBtn icon="ph-link" title="Insert link" />
               <ToolbarBtn icon="ph-file-text" title="Attach file" />
             </div>
-            {/* Character counter */}
-            <span className={`text-[12px] font-medium ${description.length >= DESC_MAX ? 'text-[#DC2626]' : 'text-[#9CA3AF]'}`}>
-              {description.length}/{DESC_MAX}
-            </span>
+            {/* History actions + character counter */}
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleUndo}
+                disabled={historyIndex <= 0}
+                title="Undo"
+                className="w-7 h-7 flex items-center justify-center rounded-[5px] text-[#6B7280] hover:text-[#5C2D91] hover:bg-[#F3EEF9] disabled:opacity-30 disabled:hover:text-[#6B7280] disabled:hover:bg-transparent transition-all cursor-pointer disabled:cursor-not-allowed"
+              >
+                <i className="ph ph-arrow-counter-clockwise text-[15px]" />
+              </button>
+              <button
+                type="button"
+                onClick={handleRedo}
+                disabled={historyIndex >= descHistory.length - 1}
+                title="Redo"
+                className="w-7 h-7 flex items-center justify-center rounded-[5px] text-[#6B7280] hover:text-[#5C2D91] hover:bg-[#F3EEF9] disabled:opacity-30 disabled:hover:text-[#6B7280] disabled:hover:bg-transparent transition-all cursor-pointer disabled:cursor-not-allowed"
+              >
+                <i className="ph ph-arrow-clockwise text-[15px]" />
+              </button>
+              <div className="w-[1px] h-3 bg-[#E5E7EB] mx-1.5" />
+              <span className={`text-[12px] font-medium ${description.length >= DESC_MAX ? 'text-[#DC2626]' : 'text-[#9CA3AF]'}`}>
+                {description.length}/{DESC_MAX}
+              </span>
+            </div>
           </div>
 
           {/* Improve error */}

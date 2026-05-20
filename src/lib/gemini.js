@@ -47,6 +47,12 @@ export async function callGemini(prompt, { temperature = 0.7, maxTokens = 512 } 
 
   if (!res.ok) {
     const err = await res.text().catch(() => '');
+    if (res.status === 429) {
+      throw new Error(
+        'Gemini API quota exceeded. Your free tier limit has been reached. ' +
+        'Please wait a few minutes and try again, or check your quota at ai.google.dev/gemini-api/docs/rate-limits'
+      );
+    }
     throw new Error(`Gemini API error ${res.status}: ${err.substring(0, 300)}`);
   }
 

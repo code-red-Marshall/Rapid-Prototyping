@@ -53,6 +53,85 @@ function proxyPlugin() {
           return;
         }
 
+        // ── Groq proxy — api.groq.com (OpenAI-compatible) ─────────────────
+        if (req.url && req.url.startsWith('/api/groq')) {
+          const targetPath = req.url.replace('/api/groq', '');
+          const targetUrl  = `https://api.groq.com${targetPath}`;
+
+          const chunks = [];
+          for await (const chunk of req) chunks.push(chunk);
+          const body = Buffer.concat(chunks);
+
+          try {
+            console.log(`[Groq Proxy] ${req.method} ${targetUrl}`);
+            const proxyRes = await fetch(targetUrl, {
+              method: req.method,
+              headers: {
+                'Authorization': req.headers['authorization'] || '',
+                'Content-Type':  req.headers['content-type']  || 'application/json',
+              },
+              body: req.method !== 'GET' ? body : undefined,
+            });
+            const buffer = Buffer.from(await proxyRes.arrayBuffer());
+            if (proxyRes.ok) {
+              console.log(`[Groq Proxy] ✅ ${proxyRes.status} — ${buffer.length} bytes`);
+            } else {
+              console.error(`[Groq Proxy] ❌ ${proxyRes.status}: ${buffer.toString('utf-8').substring(0, 400)}`);
+            }
+            res.statusCode = proxyRes.status;
+            const ct = proxyRes.headers.get('content-type');
+            if (ct) res.setHeader('Content-Type', ct);
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.end(buffer);
+          } catch (err) {
+            console.error(`[Groq Proxy] Error:`, err.message);
+            res.statusCode = 502;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err.message }));
+          }
+          return;
+        }
+
+        // Separate from /api/huggingface (router) — the direct Inference API
+        // has broader model support for text generation (Mistral, Zephyr, etc).
+        if (req.url && req.url.startsWith('/api/hf-text')) {
+          const targetPath = req.url.replace('/api/hf-text', '');
+          const targetUrl  = `https://api-inference.huggingface.co${targetPath}`;
+
+          const chunks = [];
+          for await (const chunk of req) chunks.push(chunk);
+          const body = Buffer.concat(chunks);
+
+          try {
+            console.log(`[HF-Text Proxy] ${req.method} ${targetUrl}`);
+            const proxyRes = await fetch(targetUrl, {
+              method: req.method,
+              headers: {
+                'Authorization': req.headers['authorization'] || '',
+                'Content-Type':  req.headers['content-type']  || 'application/json',
+              },
+              body: req.method !== 'GET' ? body : undefined,
+            });
+            const buffer = Buffer.from(await proxyRes.arrayBuffer());
+            if (proxyRes.ok) {
+              console.log(`[HF-Text Proxy] ✅ ${proxyRes.status} — ${buffer.length} bytes`);
+            } else {
+              console.error(`[HF-Text Proxy] ❌ ${proxyRes.status}: ${buffer.toString('utf-8').substring(0, 400)}`);
+            }
+            res.statusCode = proxyRes.status;
+            const ct = proxyRes.headers.get('content-type');
+            if (ct) res.setHeader('Content-Type', ct);
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.end(buffer);
+          } catch (err) {
+            console.error(`[HF-Text Proxy] Error:`, err.message);
+            res.statusCode = 502;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err.message }));
+          }
+          return;
+        }
+
         // ── Pollinations proxy — Node UA bypasses Cloudflare Turnstile ─
         if (req.url && req.url.startsWith('/api/pollinations')) {
           const targetPath = req.url.replace('/api/pollinations', '');
