@@ -1,0 +1,49 @@
+# netlify.toml
+# Configures Netlify server redirects and API proxies to match the Vite development server's middleware proxy routing.
+
+# 1. Groq Proxy (api.groq.com)
+[[redirects]]
+  from = "/api/groq/*"
+  to = "https://api.groq.com/:splat"
+  status = 200
+  force = true
+  headers = { Access-Control-Allow-Origin = "*" }
+
+# 2. Hugging Face Inference Proxy (router.huggingface.co)
+[[redirects]]
+  from = "/api/huggingface/*"
+  to = "https://router.huggingface.co/hf-inference/:splat"
+  status = 200
+  force = true
+  headers = { Access-Control-Allow-Origin = "*" }
+
+# 3. Direct Hugging Face Text Inference Proxy (api-inference.huggingface.co)
+[[redirects]]
+  from = "/api/hf-text/*"
+  to = "https://api-inference.huggingface.co/:splat"
+  status = 200
+  force = true
+  headers = { Access-Control-Allow-Origin = "*" }
+
+# 4. Pollinations Image Proxy (image.pollinations.ai)
+[[redirects]]
+  from = "/api/pollinations/*"
+  to = "https://image.pollinations.ai/:splat"
+  status = 200
+  force = true
+  headers = { Access-Control-Allow-Origin = "*" }
+
+# 5. Gemini API Proxy (generativelanguage.googleapis.com)
+[[redirects]]
+  from = "/api/gemini/*"
+  to = "https://generativelanguage.googleapis.com/:splat"
+  status = 200
+  force = true
+  headers = { Access-Control-Allow-Origin = "*" }
+
+# 6. Single Page App (SPA) Fallback routing
+# Forwards all other non-file requests to index.html for React Router compatibility.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
