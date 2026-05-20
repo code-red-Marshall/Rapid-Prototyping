@@ -296,7 +296,7 @@ function parseJson(raw) {
  * @param {string} toneId - The active tone ID.
  * @returns {string} The perfectly budgeted description.
  */
-export function adjustAnnouncementLength(desc, toneId = 'informative', sender = 'Team HR') {
+export function adjustAnnouncementLength(desc, toneId = 'informative', sender = '[ ]') {
   if (typeof desc !== 'string') return desc;
 
   const cleanSender = (sender || '').trim();
@@ -514,7 +514,7 @@ export function adjustAnnouncementLength(desc, toneId = 'informative', sender = 
  * @returns {Promise<{ title: string, description: string }>}
  * @throws {Error} With message set to an AI_ERRORS constant.
  */
-export async function generateAnnouncement({ userInput, toneId = DEFAULT_TONE_ID, placeholders = {}, sender = 'Team HR' }) {
+export async function generateAnnouncement({ userInput, toneId = DEFAULT_TONE_ID, placeholders = {}, sender = '[ ]' }) {
   // Step 1: Validate input before any generation prompt is built
   await runValidation(userInput);
 
