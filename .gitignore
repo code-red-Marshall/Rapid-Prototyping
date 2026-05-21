@@ -27,3 +27,8 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+
+# Scratch and temporary directories
+scratch/
+.tempmediaStorage/
+

@@ -1,31 +1,36 @@
 # netlify.toml
 # Configures Netlify server redirects and API proxies to match the Vite development server's middleware proxy routing.
 
-# 1. Groq Proxy (api.groq.com)
+# Build Settings and Environment
+[build]
+  publish = "dist"
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# 1. Groq Proxy (via Serverless Function to preserve Authorization headers)
 [[redirects]]
   from = "/api/groq/*"
-  to = "https://api.groq.com/:splat"
+  to = "/.netlify/functions/groq"
   status = 200
   force = true
-  headers = { Access-Control-Allow-Origin = "*" }
 
-# 2. Hugging Face Inference Proxy (router.huggingface.co)
+# 2. Hugging Face Inference Proxy (via Serverless Function to preserve Authorization headers)
 [[redirects]]
   from = "/api/huggingface/*"
-  to = "https://router.huggingface.co/hf-inference/:splat"
+  to = "/.netlify/functions/huggingface"
   status = 200
   force = true
-  headers = { Access-Control-Allow-Origin = "*" }
 
-# 3. Direct Hugging Face Text Inference Proxy (api-inference.huggingface.co)
+# 3. Direct Hugging Face Text Inference Proxy (via Serverless Function to preserve Authorization headers)
 [[redirects]]
   from = "/api/hf-text/*"
-  to = "https://api-inference.huggingface.co/:splat"
+  to = "/.netlify/functions/hf-text"
   status = 200
   force = true
-  headers = { Access-Control-Allow-Origin = "*" }
 
-# 4. Pollinations Image Proxy (image.pollinations.ai)
+# 4. Pollinations Image Proxy (image.pollinations.ai - Public API, standard redirect ok)
 [[redirects]]
   from = "/api/pollinations/*"
   to = "https://image.pollinations.ai/:splat"
@@ -33,13 +38,12 @@
   force = true
   headers = { Access-Control-Allow-Origin = "*" }
 
-# 5. Gemini API Proxy (generativelanguage.googleapis.com)
+# 5. Gemini API Proxy (via Serverless Function for consistency and security)
 [[redirects]]
   from = "/api/gemini/*"
-  to = "https://generativelanguage.googleapis.com/:splat"
+  to = "/.netlify/functions/gemini"
   status = 200
   force = true
-  headers = { Access-Control-Allow-Origin = "*" }
 
 # 6. Single Page App (SPA) Fallback routing
 # Forwards all other non-file requests to index.html for React Router compatibility.
@@ -47,3 +51,4 @@
   from = "/*"
   to = "/index.html"
   status = 200
+

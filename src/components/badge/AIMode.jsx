@@ -82,7 +82,7 @@ export default function AIMode({
       }
     } catch (err) {
       console.error(err);
-      setError('Generation failed. Check your API key and try again.');
+      setError(err.message || 'Generation failed. Check your API key and try again.');
     } finally {
       setIsGenerating(false);
     }
@@ -128,35 +128,68 @@ export default function AIMode({
       {activeTab === 'icon' && (
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
 
-          {/* Style Selector */}
-          <div className="flex gap-1.5 mb-3 shrink-0">
-            {STYLES.map((style) => {
-              const isActive = activeStyle === style.id;
-              return (
-                <button
-                  key={style.id}
-                  onClick={() => setActiveStyle(style.id)}
-                  className={`relative flex-1 py-1.5 px-0.5 border rounded-lg flex flex-col items-center gap-0.5 transition-all ${
-                    isActive ? 'border-[#5C2D91] bg-purple-50' : 'border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  <i className={`ph ${style.icon} text-sm ${isActive ? 'text-[#5C2D91]' : 'text-slate-400'}`} />
-                  <span className={`text-[10px] font-medium leading-none ${isActive ? 'text-[#5C2D91]' : 'text-slate-500'}`}>
-                    {style.label}
-                  </span>
-                  {style.badge && (
-                    <span className="absolute -bottom-1.5 bg-white text-[8px] font-bold text-slate-500 px-0.5 border border-slate-200 rounded leading-none py-0.5">
-                      {style.badge}
-                    </span>
-                  )}
-                  {isActive && (
-                    <div className="absolute -top-1 -right-1 bg-white rounded-full">
-                      <i className="ph-fill ph-check-circle text-[#5C2D91] text-xs" />
+          {/* Style Selector Container */}
+          <div className="bg-slate-50/70 border border-slate-200/50 rounded-2xl p-3.5 mb-4 shrink-0 shadow-sm">
+            <div className="flex gap-2 justify-around items-start">
+              {STYLES.map((style) => {
+                const isActive = activeStyle === style.id;
+                
+                // Premium style-specific backgrounds
+                let circleBgClass = '';
+                let iconColorClass = '';
+                
+                if (style.id === 'Auto') {
+                  circleBgClass = isActive
+                    ? 'bg-gradient-to-tr from-violet-600 to-indigo-700 text-white shadow-md ring-2 ring-indigo-500 ring-offset-1 border-transparent'
+                    : 'bg-gradient-to-tr from-violet-50 via-indigo-50 to-purple-100 text-indigo-700 border-indigo-200/70 hover:from-violet-100 hover:to-indigo-200 hover:border-indigo-300';
+                  iconColorClass = isActive ? 'text-white' : 'text-indigo-600';
+                } else if (style.id === 'Minimal') {
+                  circleBgClass = isActive
+                    ? 'bg-gradient-to-tr from-slate-700 to-slate-800 text-white shadow-md ring-2 ring-slate-400 ring-offset-1 border-transparent'
+                    : 'bg-[#FAF7F2] text-slate-700 border-[#EAE3D2] hover:bg-[#F3EFE7] hover:border-[#DFD5C0]';
+                  iconColorClass = isActive ? 'text-white' : 'text-slate-600';
+                } else if (style.id === 'Professional') {
+                  circleBgClass = isActive
+                    ? 'bg-gradient-to-tr from-slate-900 via-[#1E3A8A] to-slate-800 text-white shadow-md ring-2 ring-blue-500 ring-offset-1 border-transparent'
+                    : 'bg-gradient-to-tr from-slate-900 via-[#1e294b] to-slate-900 text-slate-200 border-[#334155] hover:brightness-110';
+                  iconColorClass = isActive ? 'text-white' : 'text-blue-300';
+                } else if (style.id === 'Fun') {
+                  circleBgClass = isActive
+                    ? 'bg-gradient-to-tr from-pink-500 via-rose-500 to-amber-500 text-white shadow-md ring-2 ring-pink-500 ring-offset-1 border-transparent'
+                    : 'bg-gradient-to-tr from-amber-50 via-rose-50 to-pink-100 text-pink-700 border-amber-200/70 hover:from-amber-100 hover:to-rose-100 hover:border-amber-300';
+                  iconColorClass = isActive ? 'text-white' : 'text-pink-600';
+                }
+
+                return (
+                  <div key={style.id} className="flex flex-col items-center flex-1">
+                    <div className="relative">
+                      <button
+                        onClick={() => setActiveStyle(style.id)}
+                        className={`w-12 h-12 rounded-full border flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95 ${circleBgClass}`}
+                      >
+                        <i className={`ph ${style.icon} text-lg ${iconColorClass} transition-colors duration-300`} />
+                      </button>
+                      
+                      {isActive && (
+                        <div className="absolute -top-0.5 -right-0.5 bg-[#5C2D91] text-white rounded-full shadow-md w-4 h-4 flex items-center justify-center z-20 border border-white">
+                          <i className="ph-bold ph-check text-[9px]" />
+                        </div>
+                      )}
                     </div>
-                  )}
-                </button>
-              );
-            })}
+                    
+                    <span className={`text-[10px] font-bold mt-2.5 transition-colors leading-none ${isActive ? 'text-[#5C2D91]' : 'text-slate-500'}`}>
+                      {style.label}
+                    </span>
+                    
+                    {style.badge && (
+                      <span className="mt-1.5 bg-violet-100 text-[#5C2D91] text-[6.5px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 border border-violet-200/60 rounded-full leading-none shadow-sm whitespace-nowrap">
+                        {style.badge}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* Generate Button */}
