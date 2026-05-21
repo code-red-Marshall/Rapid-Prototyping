@@ -128,27 +128,343 @@ const BG_STYLE_CONFIGS = {
   ],
 };
 
-/**
- * Guardrail for ICON prompts.
- * The badge MUST have its own internal colored background.
- * Only the outer surround is white (for removal).
- */
-const ICON_GUARDRAIL = `
-ABSOLUTE REQUIREMENTS:
-- The badge/award shape MUST have its own RICH INTERNAL BACKGROUND COLOR — never white or transparent inside
-- ONLY the area OUTSIDE the badge shape boundary should be pure white (#FFFFFF)
-- The interior of the badge must be a vivid, saturated, or deep color (orange, blue, green, gold, etc.)
-- NO text, NO letters, NO numbers, NO words anywhere in the image
-- Badge shape must occupy 65–80% of the total image frame, centered
-- Content inside the badge must be HIGH DETAIL, premium quality — 3D rendered or premium flat vector
-- NO blurry, low-detail, or generic clipart quality
-- The badge must look like a professional award suitable for a corporate recognition program
-- White outer background only — for background removal processing
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SYSTEM PROMPTS STRUCTURE (USER REQUEST DEFINED)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BASE_PROMPT = `You are generating enterprise-grade recognition badge and award visuals for workplace recognition systems.
+
+Your task is to create a SINGLE centered recognition visual based on:
+- recognition title
+- recognition description
+- organizational value
+- selected style
+- asset type
+
+The generated output must visually represent workplace achievement, appreciation, recognition, excellence, collaboration, innovation, leadership, or performance.
+
+The design must feel suitable for:
+- HR platforms
+- employee engagement systems
+- enterprise SaaS products
+- workplace appreciation programs
+
+The output must be:
+- clean
+- visually balanced
+- centered
+- high quality
+- professional
+- symbolic
+- aesthetically consistent
+
+The generated asset must:
+- contain one primary recognition composition
+- maintain clear hierarchy
+- avoid clutter
+- maintain strong silhouette readability
+- be visually understandable even at smaller sizes
+
+Badge compositions should:
+- focus on iconography
+- use compact centered layouts
+- resemble modern workplace badges, medals, seals, or achievement icons
+
+Award compositions should:
+- include richer scene composition
+- include environmental depth
+- include premium visual presentation
+- feel celebratory and cinematic
+
+The visual style must remain enterprise-safe and suitable for workplace usage.
+
+The recognition title should influence symbolism and visual motifs.
+
+The recognition description should influence:
+- emotional tone
+- symbolism
+- supporting elements
+- visual storytelling
+
+The organizational value should influence:
+- color behavior
+- symbolism
+- composition personality
+- visual energy
+
+Generate only the visual asset.`;
+
+const GLOBAL_GUARDRAILS = `STRICT GUARDRAILS:
+
+Do NOT generate:
+- unrelated text
+- fake branding
+- random typography
+- watermarks
+- signatures
+- labels unrelated to recognition
+- meaningless characters
+- distorted text
+- lorem ipsum
+- fantasy emblems
+- gaming assets
+- esports styling
+- anime styling
+- NFT aesthetics
+- cyberpunk aesthetics
+- horror elements
+- weapons
+- violence
+- political symbols
+- religious symbols
+- national flags
+- military symbols
+- meme aesthetics
+- random animals unless contextually relevant
+- unrelated objects
+
+Avoid:
+- over-detailed compositions
+- excessive glow
+- chaotic layouts
+- poster-style scenes
+- UI screenshots
+- floating unrelated objects
+- excessive gradients
+- excessive texture noise
+- dark horror palettes
+- low contrast visuals
+
+Maintain:
+- centered composition
+- clean background separation
+- recognition-focused symbolism
+- workplace-safe visuals
+- enterprise-quality aesthetics
+- modern recognition-system styling
+
+Text handling rules:
+- Only generate meaningful recognition-related wording
+- Avoid gibberish text
+- Avoid malformed typography
+- Avoid curved unreadable text
+- Avoid random initials or codes
+- Prefer minimal text usage
+
+Composition rules:
+- Main subject must remain centered
+- Subject must occupy clear visual focus
+- Maintain visual breathing room
+- Keep consistent spacing
+- Avoid overcrowding
+
+Color rules:
+- Use harmonious enterprise-safe palettes
+- Maintain sufficient contrast
+- Avoid oversaturated neon aesthetics
+- Avoid muddy low-contrast outputs
+
+Output quality rules:
+- crisp edges
+- clean rendering
+- modern visual quality
+- polished presentation`;
+
+const STYLE_PROMPTS = {
+  Auto: `STYLE: AUTO
+
+Generate a balanced workplace recognition badge that combines:
+- approachability
+- modern enterprise aesthetics
+- celebratory recognition styling
+- friendly visual appeal
+
+Preferred characteristics:
+- circular or soft badge compositions
+- clean ribbons
+- simplified achievement symbolism
+- modern recognition iconography
+- approachable illustration language
+
+Allowed visual motifs:
+- trophies
+- stars
+- medals
+- ribbons
+- appreciation symbols
+- collaboration symbols
+- workplace celebration motifs
+- positive achievement symbolism
+
+Visual behavior:
+- centered composition
+- soft shadows
+- balanced spacing
+- soft color palettes
+- lightweight depth
+- clean readability
+
+Avoid:
+- hyper realism
+- aggressive premium styling
+- excessive abstraction
+- childish cartoon behavior
+- random geometric chaos
+
+The output should feel:
+- safe
+- polished
+- adaptable
+- broadly usable across organizations`,
+
+  Minimal: `STYLE: MINIMAL
+
+Generate a minimal enterprise recognition badge.
+
+Focus on:
+- simplicity
+- geometric clarity
+- whitespace
+- restrained elegance
+- clean iconography
+
+Preferred characteristics:
+- simple shapes
+- thin borders
+- subtle shadows
+- minimal color usage
+- monochromatic or dual-tone palettes
+- lightweight symbolism
+
+Allowed motifs:
+- simple trophies
+- stars
+- checkmarks
+- clean medals
+- geometric seals
+- subtle laurels
+
+Avoid:
+- characters
+- mascots
+- excessive decoration
+- ribbons with heavy detailing
+- complex textures
+- gradients with high intensity
+- visual clutter
+
+The design should feel:
+- premium
+- lightweight
+- elegant
+- modern SaaS friendly
+- scalable`,
+
+  Professional: `STYLE: PROFESSIONAL
+
+Generate a premium enterprise workplace recognition visual.
+
+Focus on:
+- trust
+- credibility
+- achievement
+- sophistication
+- corporate excellence
+
+Preferred characteristics:
+- polished badge structures
+- refined metallic styling
+- elegant depth
+- premium composition hierarchy
+- structured layout
+
+Allowed motifs:
+- premium medals
+- laurels
+- shields
+- trophies
+- achievement seals
+- refined workplace symbolism
+- leadership symbolism
+
+Visual behavior:
+- balanced composition
+- subtle premium lighting
+- elegant contrast
+- controlled shadows
+- clean typography integration
+
+Avoid:
+- playful aesthetics
+- cartoon styling
+- exaggerated expressions
+- meme visuals
+- childish illustration behavior
+
+The design should feel:
+- executive
+- corporate
+- aspirational
+- trustworthy
+- enterprise premium`,
+
+  Fun: `STYLE: FUN
+
+Generate a playful workplace recognition badge with friendly enterprise energy.
+
+Focus on:
+- appreciation
+- celebration
+- team culture
+- human connection
+- positive workplace engagement
+
+Preferred characteristics:
+- soft 3D illustration styling
+- expressive workplace characters
+- playful recognition symbolism
+- vibrant but controlled colors
+- friendly ribbons and shapes
+
+Allowed motifs:
+- teamwork
+- high-fives
+- collaboration
+- celebration
+- workplace achievement
+- happy workplace energy
+- office-friendly playful visuals
+
+Character rules:
+- characters must remain workplace-safe
+- professional attire preferred
+- expressions should feel positive and inclusive
+
+Avoid:
+- childish cartoon extremes
+- meme aesthetics
+- exaggerated comedy
+- fantasy creatures
+- anime styling
+- gaming aesthetics
+
+The design should feel:
+- engaging
+- modern
+- human-centered
+- celebratory
+- emotionally warm`
+};
+
+const SOLID_BADGE_COMPOSITION_GUARDRAIL = `
+SOLID BADGE STRUCTURE MANDATE:
+- The badge/medal MUST be structured as a solid circular shape, regular polygon, or shield centered in the frame.
+- The badge interior MUST have its own rich, solid, non-white background color (e.g. orange, midnight blue, warm gold, teal).
+- The AREA OUTSIDE the centered badge boundary MUST be PURE WHITE (#FFFFFF).
+- This white outer background is strictly required for clean post-generation transparency processing.
 `;
 
-/**
- * Guardrail for BACKGROUND prompts (Award module).
- */
 const BG_GUARDRAIL = `
 STRICT REQUIREMENTS:
 - Full-bleed gradient or textured background — NO centered focal element
@@ -162,8 +478,8 @@ STRICT REQUIREMENTS:
 // SEMANTIC ENRICHMENT — deterministic keyword mapping (no LLM)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function semanticEnrich(name, description) {
-  const text = `${name} ${description}`.toLowerCase();
+function semanticEnrich(name, description, values = '') {
+  const text = `${name} ${description} ${values}`.toLowerCase();
 
   let theme = 'excellence and achievement';
   if (text.match(/sales|revenue|quota|deal|pipeline/))      theme = 'sales performance and revenue growth';
@@ -190,42 +506,124 @@ function semanticEnrich(name, description) {
   if (text.match(/champion|winner|top/))motif = '3D number one gold trophy with laurel wreath';
   if (text.match(/global|world|intern/))motif = '3D globe with golden meridian lines, world map';
 
-  const context = [
-    name        ? `Award name: "${name}"` : '',
-    description ? `Purpose: ${description}` : '',
-    `Theme: ${theme}`,
-  ].filter(Boolean).join('. ');
+  let colorBehavior = 'Harmonious and enterprise-safe. Balanced saturations with soft gradients.';
+  if (text.match(/sales|revenue|money/)) colorBehavior = 'Energetic deep greens, rich golds, and warm highlights.';
+  if (text.match(/team|collaborat/))     colorBehavior = 'Friendly and cooperative greens, emeralds, and soft teal.';
+  if (text.match(/innovat|idea|creat/))  colorBehavior = 'Inspiring purples, violet tones, and electric highlights.';
+  if (text.match(/lead|manage/))         colorBehavior = 'Authoritative deep blues, midnight navy, and polished gold accents.';
+  if (text.match(/champion|winner|top/)) colorBehavior = 'Gleaming metallic gold, bright champion yellow, and celebratory amber.';
 
-  return { theme, motif, context };
+  return { theme, motif, colorBehavior };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PROMPT BUILDERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-function buildIconPrompt(name, description, style, slot) {
-  const config = STYLE_CONFIGS[style] ?? STYLE_CONFIGS.Auto;
-  const variation = config.variations[slot] ?? config.variations[0];
-  const { theme, motif, context } = semanticEnrich(name, description);
+function buildIconPrompt(name, description, style, slot, values = '') {
+  const { theme, motif, colorBehavior } = semanticEnrich(name, description, values);
+  const stylePrompt = STYLE_PROMPTS[style] ?? STYLE_PROMPTS.Auto;
+  
+  // Variation-specific visual cues (keeps variation 0, 1, 2 diverse)
+  const variationCues = [
+    `centered around the main motif of ${motif} inside a circular shape`,
+    `featuring a stylized interpretation of ${motif} inside a rounded shield shape`,
+    `featuring a clean premium emblem representing ${motif} in a modern medallion structure`
+  ];
+  const selectedCue = variationCues[slot] ?? variationCues[0];
 
   return `
-BADGE DESIGN: ${variation.visual}.
-SHAPE & COMPOSITION: ${variation.form}.
-STYLE & FINISH: ${variation.finish}.
-VISUAL MOTIF: The badge interior features ${motif} — representing ${theme}.
-CONTEXT: ${context}.
-${ICON_GUARDRAIL}
+${BASE_PROMPT}
+
+${GLOBAL_GUARDRAILS}
+
+${SOLID_BADGE_COMPOSITION_GUARDRAIL}
+
+${stylePrompt}
+
+DYNAMIC SEMANTIC INJECTION LAYER:
+Recognition Title:
+"${name}"
+
+Recognition Description:
+"${description}"
+
+Organizational Value:
+"${values || 'Excellence'}"
+
+Asset Type:
+"badge"
+
+Semantic Themes:
+"${theme}"
+
+Primary Visual Motifs:
+"${selectedCue}"
+
+Suggested Color Behavior:
+"${colorBehavior}"
+
+Final prompt ASSEMBLY:
+BASE PROMPT
++
+GUARDRAILS
++
+STYLE PROMPT
++
+SEMANTIC LAYER
 `.trim();
 }
 
-function buildBackgroundPrompt(name, description, style, slot) {
-  const bgVariations = BG_STYLE_CONFIGS[style] ?? BG_STYLE_CONFIGS.Auto;
-  const visual = bgVariations[slot] ?? bgVariations[0];
-  const { theme } = semanticEnrich(name, description);
+function buildBackgroundPrompt(name, description, style, slot, values = '') {
+  const { theme, colorBehavior } = semanticEnrich(name, description, values);
+  const stylePrompt = STYLE_PROMPTS[style] ?? STYLE_PROMPTS.Auto;
+  
+  const bgVariations = [
+    'full-bleed rich celebratory gradient wash with beautiful soft radial glow effects and abstract light streaks',
+    'elegant cinematic dark background overlayed with soft corporate geometric shapes and dynamic lighting depth',
+    'inspiring creative backdrop featuring subtle micro-animations/particles of light and soft blend transitions'
+  ];
+  const selectedBg = bgVariations[slot] ?? bgVariations[0];
+
   return `
-BACKGROUND DESIGN: ${visual}.
-THEMATIC PALETTE: Colours evoking ${theme}.
+${BASE_PROMPT}
+
+${GLOBAL_GUARDRAILS}
+
 ${BG_GUARDRAIL}
+
+${stylePrompt}
+
+DYNAMIC SEMANTIC INJECTION LAYER:
+Recognition Title:
+"${name}"
+
+Recognition Description:
+"${description}"
+
+Organizational Value:
+"${values || 'Excellence'}"
+
+Asset Type:
+"award"
+
+Semantic Themes:
+"${theme}"
+
+Primary Visual Motifs:
+"${selectedBg}"
+
+Suggested Color Behavior:
+"${colorBehavior}"
+
+Final prompt ASSEMBLY:
+BASE PROMPT
++
+GUARDRAILS
++
+STYLE PROMPT
++
+SEMANTIC LAYER
 `.trim();
 }
 
@@ -393,8 +791,8 @@ export async function extractDominantColor(blobUrl) {
  * Generates a single complete badge icon (solid, coloured internally).
  * White outer surround is removed post-generation.
  */
-export async function generateBadgeIcon(name, description, style, slot = 0) {
-  const prompt = buildIconPrompt(name, description, style, slot);
+export async function generateBadgeIcon(name, description, style, slot = 0, values = '') {
+  const prompt = buildIconPrompt(name, description, style, slot, values);
   const seed = generateSeed(slot);
   const rawUrl = await callFlux(prompt, seed);
   try {
@@ -408,8 +806,8 @@ export async function generateBadgeIcon(name, description, style, slot = 0) {
 /**
  * Generates a full-bleed award background image.
  */
-export async function generateAwardBackground(name, description, style, slot = 0) {
-  const prompt = buildBackgroundPrompt(name, description, style, slot);
+export async function generateAwardBackground(name, description, style, slot = 0, values = '') {
+  const prompt = buildBackgroundPrompt(name, description, style, slot, values);
   const seed = generateSeed(slot) + 999999;
   return callFlux(prompt, seed);
 }
@@ -429,20 +827,14 @@ export function getRecommendedHex(name, description) {
 /**
  * Generates three icon + metadata suggestions in parallel.
  *
- * BADGE:  returns [{ id, iconUrl, suggestedColor, style }]
- *   suggestedColor = complementary page background extracted from the badge
- *
- * AWARD:  returns [{ id, iconUrl, backgroundUrl, style }]
- *   6 FLUX calls in parallel (3 icons + 3 backgrounds)
- *
  * SESSION-ONLY — callers MUST NOT persist these to localStorage.
  */
-export async function generateThreeSuggestions(name, description, style, type) {
+export async function generateThreeSuggestions(name, description, style, type, values = '') {
   const slots = [0, 1, 2];
 
   if (type === 'badge') {
     const icons = await Promise.all(
-      slots.map((slot) => generateBadgeIcon(name, description, style, slot))
+      slots.map((slot) => generateBadgeIcon(name, description, style, slot, values))
     );
     const colors = await Promise.all(icons.map((url) => extractDominantColor(url)));
     return icons.map((iconUrl, i) => ({
@@ -455,8 +847,8 @@ export async function generateThreeSuggestions(name, description, style, type) {
 
   if (type === 'award') {
     const [icons, backgrounds] = await Promise.all([
-      Promise.all(slots.map((slot) => generateBadgeIcon(name, description, style, slot))),
-      Promise.all(slots.map((slot) => generateAwardBackground(name, description, style, slot))),
+      Promise.all(slots.map((slot) => generateBadgeIcon(name, description, style, slot, values))),
+      Promise.all(slots.map((slot) => generateAwardBackground(name, description, style, slot, values))),
     ]);
     return icons.map((iconUrl, i) => ({
       id: `sess-${Date.now()}-${i}`,

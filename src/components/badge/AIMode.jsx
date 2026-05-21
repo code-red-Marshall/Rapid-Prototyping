@@ -70,7 +70,8 @@ export default function AIMode({
         badgeData.name        || 'Badge',
         badgeData.description || '',
         activeStyle,
-        'badge'
+        'badge',
+        badgeData.values      || ''
       );
       // Store in session state only — NOT persisted to localStorage
       setSessionSuggestions(results);

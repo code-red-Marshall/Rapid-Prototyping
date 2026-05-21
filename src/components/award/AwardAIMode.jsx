@@ -97,7 +97,8 @@ export default function AwardAIMode({
         awardData.name        || 'Award',
         awardData.description || '',
         activeStyle,
-        'award'
+        'award',
+        awardData.values      || ''
       );
       setSessionSuggestions(results);
       if (results[0]) {
